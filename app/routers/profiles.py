@@ -172,6 +172,19 @@ def build_query(filters: dict, sort_by, order, page, limit):
 
     return query.execute()
 
+@router.get("/users/me")
+@limiter.limit("60/minute")
+async def get_me(request: Request, current_user: dict = Depends(require_auth)):
+    return {
+        "status": "success",
+        "user": {
+            "id": current_user["id"],
+            "username": current_user["username"],
+            "role": current_user["role"],
+            "email": current_user["email"],
+            "avatar_url": current_user["avatar_url"]
+        }
+    }
 
 @router.post("/profiles")
 @limiter.limit("60/minute")
