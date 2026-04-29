@@ -1,74 +1,125 @@
-# Intelligence Query Engine
+# Insighta Labs+ — Backend
 
-A REST API for querying and searching profile data using structured filters or plain English.
+A secure, multi-interface profile intelligence platform built with FastAPI and Supabase.
 
-## Base URL
+## Live URL
+https://hng-project-3-backend-production.up.railway.app
 
-https://<your-deployed-url>
+## System Architecture
 
-## Endpoints
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   CLI Tool      │     │   Web Portal    │     │   API Clients   │
+└────────┬────────┘     └────────┬────────┘     └────────┬────────┘
+│                       │                        │
+│  Bearer Token         │  HTTP-only Cookies     │  Bearer Token
+└───────────────────────┴────────────────────────┘
+│
+┌────────────▼────────────┐
+│     FastAPI Backend      │
+│  - Auth Router           │
+│  - Profiles Router       │
+│  - Rate Limiting         │
+│  - Request Logging       │
+└────────────┬────────────┘
+│
+┌────────────▼────────────┐
+│        Supabase          │
+│  - users table           │
+│  - refresh_tokens table  │
+│  - tasktwoprofiles table │
+└─────────────────────────┘
 
-### GET /api/profiles
+## Auth Flow
 
-Returns a paginated list of profiles with optional filters.
+### Web Flow
+1. User clicks "Continue with GitHub" on the web portal
+2. Browser redirects to `GET /auth/github`
+3. Backend generates state and redirects to GitHub OAuth
+4. User authenticates on GitHub
+5. GitHub redirects to `GET /auth/github/callback`
+6. Backend exchanges code for GitHub access token
+7. Backend fetches user info from GitHub
+8. Backend creates or updates user in database
+9. Backend issues access token (3min) and refresh token (5min)
+10. Backend sets tokens as HTTP-only cookies
+11. Browser redirects to `/dashboard`
 
-**Query Parameters:** `gender`, `age_group`, `country_id`, `min_age`, `max_age`, `min_gender_probability`, `min_country_probability`, `sort_by`, `order`, `page`, `limit`
+### CLI Flow
+1. CLI runs `insighta login`
+2. CLI starts a local server on port 8080
+3. CLI opens browser pointing to `GET /auth/github?source=cli`
+4. User authenticates on GitHub
+5. GitHub redirects to backend callback
+6. Backend detects CLI source, redirects to `http://localhost:8080/callback` with tokens
+7. CLI local server captures tokens
+8. CLI saves tokens to `~/.insighta/credentials.json`
 
-**Response:**
-```json
-{
-  "status": "success",
-  "page": 1,
-  "limit": 10,
-  "total": 100,
-  "data": [
-    {
-      "id": "...",
-      "name": "John",
-      "gender": "male",
-      "gender_probability": 0.98,
-      "age": 35,
-      "age_group": "adult",
-      "country_id": "NG",
-      "country_probability": 0.12,
-      "created_at": "2026-04-17T12:00:00+00:00"
-    }
-  ]
-}
+## Token Handling
+
+| Token | Expiry | Storage | Purpose |
+|-------|--------|---------|---------|
+| Access Token | 3 minutes | CLI: credentials.json / Web: HTTP-only cookie | Authenticate API requests |
+| Refresh Token | 5 minutes | CLI: credentials.json / Web: HTTP-only cookie | Get new token pair |
+
+- Refresh tokens are stored as SHA256 hashes in the database
+- On refresh, old token is immediately revoked and a new pair is issued
+- If refresh fails, user must log in again
+
+## Role Enforcement
+
+Two roles exist:
+
+| Role | Permissions |
+|------|------------|
+| admin | Full access: read, search, create profiles |
+| analyst | Read only: read and search profiles |
+
+- Default role on signup: `analyst`
+- Roles are enforced via FastAPI dependencies:
+  - `require_auth` — any authenticated user
+  - `require_admin` — admin role only
+- Inactive users (`is_active=false`) receive 403 on all requests
+
+## Natural Language Parsing
+
+The `/api/profiles/search` endpoint parses natural language queries:
+
+| Query pattern | Parsed as |
+|--------------|-----------|
+| "males" / "females" | gender filter |
+| "young" | age 16-24 |
+| "child/teenager/adult/senior" | age_group filter |
+| "middle aged" | age_group = adult |
+| "above/over X" | min_age = X |
+| "below/under X" | max_age = X |
+| country names e.g "nigeria" | country_id = "NG" |
+
+## API Versioning
+
+All `/api/*` endpoints require the header:
+X-API-Version: 1
+
+## Rate Limiting
+
+| Scope | Limit |
+|-------|-------|
+| `/auth/*` endpoints | 10 requests/minute |
+| `/api/*` endpoints | 60 requests/minute |
+
+## Setup
+
+```bash
+# Clone the repo
+git clone https://github.com/DavidLahu/HNG-Project-3-Backend.git
+cd hng-stage3-backend
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Create .env file
+cp .env.example .env
+# Fill in your values
+
+# Run the server
+uvicorn app.main:app --reload
 ```
-
-### GET /api/profiles/search
-
-Accepts a plain English query and maps it to structured filters.
-
-**Query Parameters:** `q` (required), `sort_by`, `order`, `page`, `limit`
-
-**Request:**
-GET /api/profiles/search?q=young males from nigeria
-
-**Response:**
-```json
-{
-  "status": "success",
-  "page": 1,
-  "limit": 10,
-  "total": 17,
-  "data": [...]
-}
-```
-
-**Supported query patterns:**
-
-| Query | Parsed as |
-|---|---|
-| `"young males"` | `min_age=16`, `max_age=24`, `gender=male` |
-| `"females above 30"` | `gender=female`, `min_age=30` |
-| `"people from angola"` | `country_id=AO` |
-| `"adult males from kenya"` | `age_group=adult`, `gender=male`, `country_id=KE` |
-| `"middle aged females"` | `age_group=adult`, `gender=female` |
-
-## Stack
-
-- FastAPI
-- PostgreSQL (Supabase)
-- Deployed on Railway
