@@ -210,21 +210,24 @@ async def github_callback(request: Request, code: str, state: str):
         key="access_token",
         value=tokens["access_token"],
         httponly=True,
-        samesite="lax",
-        max_age=180  # 3 minutes
+        samesite="none",  # ← changed from "lax"
+        secure=True,      # ← add this
+        max_age=180
     )
     response.set_cookie(
         key="refresh_token",
         value=tokens["refresh_token"],
         httponly=True,
-        samesite="lax",
-        max_age=300  # 5 minutes
+        samesite="none",  # ← changed from "lax"
+        secure=True,      # ← add this
+        max_age=300
     )
     response.set_cookie(
         key="username",
         value=user["username"],
-        httponly=False,  # JS needs to read this for display
-        samesite="lax",
+        httponly=False,
+        samesite="none",  # ← changed from "lax"
+        secure=True,      # ← add this
         max_age=300
     )
     return response
