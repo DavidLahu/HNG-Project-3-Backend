@@ -1,68 +1,64 @@
-import time
 import logging
-import os
+import time
+
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from dotenv import load_dotenv
+
+from app.limiter import limiter
 from app.routers import auth, profiles
 
 load_dotenv()
 
-# Logging setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Rate limiter setup
-limiter = Limiter(key_func=get_remote_address)
-
 app = FastAPI(title="Insighta Labs+", version="1.0.0")
-
-limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+
 @app.exception_handler(RateLimitExceeded)
 async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
-    return JSONResponse(
-        status_code=429,
-        content={"status": "error", "message": "Rate limit exceeded"}
-    )
+    return JSONResponse(status_code=429, content={"status": "error", "message": "Rate limit exceeded"})
+
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    return JSONResponse(
-        status_code=422,
-        content={"status": "error", "message": "Invalid parameter type"}
-    )
+    return JSONResponse(status_code=422, content={"status": "error", "message": "Invalid parameter type"})
+
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
-    return JSONResponse(
-        status_code=500,
-        content={"status": "error", "message": "Server failure"}
-    )
+    return JSONResponse(status_code=500, content={"status": "error", "message": "Server failure"})
+
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://hng-project-3-frontend.vercel.app", "http://localhost:3000"],
+    allow_origins=[
+        "https://hng-project-3-frontend.vercel.app",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_origin_regex=r"https?://.*",
     allow_credentials=True,
     allow_headers=["*"],
-    allow_methods=["*"]
+    allow_methods=["*"],
 )
 
-#http middleware
+
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     start_time = time.time()
     response = await call_next(request)
     duration = round((time.time() - start_time) * 1000, 2)
-    logger.info(f"{request.method} {request.url.path} {response.status_code} {duration}ms")
+    logger.info("%s %s %s %sms", request.method, request.url.path, response.status_code, duration)
     return response
+
 
 @app.middleware("http")
 async def check_api_version(request: Request, call_next):
@@ -71,12 +67,14 @@ async def check_api_version(request: Request, call_next):
         if not version:
             return JSONResponse(
                 status_code=400,
-                content={"status": "error", "message": "API version header required"}
+                content={"status": "error", "message": "API version header required"},
             )
     return await call_next(request)
 
+
 app.include_router(auth.router)
 app.include_router(profiles.router)
+
 
 @app.get("/")
 async def root():

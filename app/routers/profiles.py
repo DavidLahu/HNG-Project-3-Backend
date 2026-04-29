@@ -1,7 +1,5 @@
 import os
 import re
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from fastapi import APIRouter, HTTPException, Depends, Request
 from supabase import Client, create_client
 import asyncio
@@ -10,6 +8,7 @@ import uuid6
 from datetime import datetime, timezone
 from pydantic import BaseModel
 from app.auth.dependencies import require_auth, require_admin
+from app.limiter import limiter
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -82,8 +81,6 @@ COUNTRY_MAP = {
     "central african republic": "CF",
     "south sudan": "SS",
 }
-
-limiter = Limiter(key_func=get_remote_address)
 
 class ProfileInput(BaseModel):
     name: str
