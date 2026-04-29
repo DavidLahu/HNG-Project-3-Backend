@@ -47,6 +47,7 @@ app.add_middleware(
     allow_methods=["*"]
 )
 
+#http middleware
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     start_time = time.time()
