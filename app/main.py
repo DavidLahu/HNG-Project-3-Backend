@@ -43,7 +43,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
     allow_headers=["*"],
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["https://hng-project-3-frontend.vercel.app"],
     allow_methods=["*"]
 )
 
