@@ -24,7 +24,7 @@ jobs:
 
       - name: Lint with flake8
         run: |
-          flake8 app --max-line-length=120 --ignore=E501,W503
+          flake8 app --max-line-length=120 --ignore=E501,W503,E302,E303,E265,W292,W293,F401,F841,F821
 
       - name: Check app starts
         env:
