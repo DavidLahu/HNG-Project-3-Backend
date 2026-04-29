@@ -22,8 +22,16 @@ limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI(title="Insighta Labs+", version="1.0.0")
 
+limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={"status": "error", "message": "Rate limit exceeded"}
+    )
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -41,9 +49,9 @@ async def general_exception_handler(request: Request, exc: Exception):
 
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=["https://hng-project-3-frontend.vercel.app", "http://localhost:3000"],
     allow_credentials=True,
     allow_headers=["*"],
-    allow_origins=["https://hng-project-3-frontend.vercel.app"],
     allow_methods=["*"]
 )
 

@@ -89,9 +89,9 @@ async def get_me(request: Request, current_user: dict = Depends(require_auth)):
 @limiter.limit("10/minute")
 async def github_login(request: Request):
     code_verifier = secrets.token_urlsafe(64)
+    code_challenge = hashlib.sha256(code_verifier.encode()).hexdigest()
     state = secrets.token_urlsafe(32)
 
-    # Store verifier mapped to state (keep for CLI use later)
     pkce_store[state] = {
         "code_verifier": code_verifier,
         "is_cli": request.query_params.get("source") == "cli"
@@ -103,6 +103,8 @@ async def github_login(request: Request):
         f"&redirect_uri={GITHUB_REDIRECT_URI}"
         f"&scope=read:user user:email"
         f"&state={state}"
+        f"&code_challenge={code_challenge}"
+        f"&code_challenge_method=S256"
     )
 
     return RedirectResponse(github_url)
@@ -111,6 +113,16 @@ async def github_login(request: Request):
 @router.get("/github/callback")
 @limiter.limit("10/minute")
 async def github_callback(request: Request, code: str, state: str):
+    if not code:
+        raise HTTPException(
+            status_code=400,
+            detail={"status": "error", "message": "Missing code parameter"}
+        )
+    if not state:
+        raise HTTPException(
+            status_code=400,
+            detail={"status": "error", "message": "Missing state parameter"}
+        )
     if state not in pkce_store:
         raise HTTPException(
             status_code=400,
@@ -240,6 +252,12 @@ class RefreshRequest(BaseModel):
 @router.post("/refresh")
 @limiter.limit("10/minute")
 async def refresh_tokens(request: Request, body: RefreshRequest):
+    if not body.refresh_token:
+        raise HTTPException(
+            status_code=400,
+            detail={"status": "error", "message": "Refresh token required"}
+        )
+
     token_hash = hashlib.sha256(body.refresh_token.encode()).hexdigest()
     result = supabase.table("refresh_tokens").select("*").eq("token_hash", token_hash).execute()
 
@@ -291,6 +309,11 @@ async def refresh_tokens(request: Request, body: RefreshRequest):
 @router.post("/logout")
 @limiter.limit("10/minute")
 async def logout(request: Request, body: RefreshRequest):
+    if not body.refresh_token:
+        raise HTTPException(
+            status_code=400,
+            detail={"status": "error", "message": "Refresh token required"}
+        )
     token_hash = hashlib.sha256(body.refresh_token.encode()).hexdigest()
     result = supabase.table("refresh_tokens").select("*").eq("token_hash", token_hash).execute()
 
