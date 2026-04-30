@@ -77,12 +77,10 @@ def _resolve_test_user(code: str, requested_role: str | None) -> dict | None:
     return get_test_user(role)
 
 
-def _set_auth_cookies(request: Request, response: JSONResponse | RedirectResponse, tokens: dict, username: str):
-    is_secure = request.url.scheme == "https"
-    same_site = "none" if is_secure else "lax"
-    response.set_cookie("access_token", tokens["access_token"], httponly=True, samesite=same_site, secure=is_secure, max_age=180)
-    response.set_cookie("refresh_token", tokens["refresh_token"], httponly=True, samesite=same_site, secure=is_secure, max_age=300)
-    response.set_cookie("username", username, httponly=False, samesite=same_site, secure=is_secure, max_age=300)
+def _set_auth_cookies(response: JSONResponse | RedirectResponse, tokens: dict, username: str):
+    response.set_cookie("access_token", tokens["access_token"], httponly=True, samesite="none", secure=True, max_age=180)
+    response.set_cookie("refresh_token", tokens["refresh_token"], httponly=True, samesite="none", secure=True, max_age=300)
+    response.set_cookie("username", username, httponly=False, samesite="none", secure=True, max_age=300)
 
 
 def _add_browser_cors_headers(request: Request, response: JSONResponse | RedirectResponse):
@@ -215,7 +213,7 @@ async def github_callback(
         return RedirectResponse(cli_redirect)
 
     response = RedirectResponse(url=f"{FRONTEND_URL}/dashboard")
-    _set_auth_cookies(request, response, tokens, user["username"])
+    _set_auth_cookies(response, tokens, user["username"])
     _add_browser_cors_headers(request, response)
     return response
 
@@ -258,7 +256,7 @@ async def refresh_tokens(request: Request, body: RefreshRequest | None = None):
 
     if request.cookies.get("refresh_token"):
         response = JSONResponse(payload)
-        _set_auth_cookies(request, response, tokens, user["username"])
+        _set_auth_cookies(response, tokens, user["username"])
         _add_browser_cors_headers(request, response)
         return response
 
