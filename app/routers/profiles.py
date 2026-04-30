@@ -174,8 +174,13 @@ def build_query(filters: dict, sort_by, order, page, limit):
 async def get_me(request: Request, current_user: dict = Depends(require_auth)):
     return {
         "status": "success",
+        "id": current_user["id"],
+        "github_id": current_user.get("github_id"),
+        "username": current_user["username"],
+        "role": current_user["role"],
         "user": {
             "id": current_user["id"],
+            "github_id": current_user.get("github_id"),
             "username": current_user["username"],
             "role": current_user["role"],
             "email": current_user["email"],
