@@ -4,6 +4,7 @@ import time
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi import HTTPException as FastAPIHTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
@@ -30,6 +31,18 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     return JSONResponse(status_code=422, content={"status": "error", "message": "Invalid parameter type"})
+
+
+@app.exception_handler(FastAPIHTTPException)
+async def http_exception_handler(request: Request, exc: FastAPIHTTPException):
+    detail = exc.detail
+    if isinstance(detail, dict):
+        status = detail.get("status", "error")
+        message = detail.get("message", "Request failed")
+    else:
+        status = "error"
+        message = str(detail)
+    return JSONResponse(status_code=exc.status_code, content={"status": status, "message": message})
 
 
 @app.exception_handler(Exception)
